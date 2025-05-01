@@ -1,6 +1,8 @@
 import telebot
 from telebot.types import Message
 import random
+import os
+import requests
 
 bot = telebot.TeleBot("")
 
@@ -59,7 +61,7 @@ def knb_game(message: Message):
         bot.send_message(message.chat.id, "Вы победили, если хотите поиграть снова, напишите /knb")
         return
     
-@bot.message_handler(commands=['dice'])
+@bot.message_handler(commands = ['dice'])
 def dice_cmd(message: Message):
     value = random.randint(1, 6)
     bot.send_message(message.chat.id, f"🎲 Кубик показывает: {value}")
@@ -71,5 +73,84 @@ def hello_text(message: Message):
 @bot.message_handler(func = lambda message: message.text.lower() == 'пока')
 def goodbye_text(message: Message):
     bot.send_message(message.chat.id, "До свидания! Возвращайся скорее!")
+
+
+@bot.message_handler(commands = ['note'])
+def note_cmd(message: Message):
+    bot.send_message(message.chat.id, "Напишите что вы хотите добавить в заметку")
+    bot.register_next_step_handler(message, add_note)
+
+def add_note(message: Message):
+    text = message.text
+    filename = f"note_{message.from_user.id}.text"
+    with open(filename, "w", encoding = 'utf-8') as file:
+        file.write(text)
+    bot.send_message(message.chat.id, "Ваша заметка успешно добавлена")
+
+@bot.message_handler(commands = ['read'])
+def read_cmd(message: Message):
+    filename = f"note_{message.from_user.id}.text"
+    with open(filename, 'r',  encoding = 'utf-8') as file:
+        text = file.read()
+    bot.send_message(message.chat.id, f"Ваша заметка: {text}")
+
+@bot.message_handler(commands = ['mem'])
+def mem_cmd(message: Message):
+    images = os.listdir('images')
+    image = random.choice(images)
+    image = 'images/' + image
+
+    with open(image, 'rb') as file:
+        bot.send_photo(message.chat.id, photo = file, caption = "Лови мемчик!")
+
+@bot.message_handler(commands = ['duck'])
+def duck_cmd(message: Message):
+    url = 'https://random-d.uk/api/random'
+    result = requests.get(url)
+    data = result.json()
+    url = data.get('url')
+    bot.send_message(message.chat.id, url)
+
+# ========================================================================================================================
+
+@bot.message_handler(commands = ['name'])
+def name_cmd(message: Message):
+    bot.send_message(message.chat.id, f"https://api.dicebear.com/9.x/personas/svg?seed={message.from_user.first_name}")
+
+# ========================================================================================================================
+
+# API для животных (можно заменить на свое)
+ANIMAL_APIS = [
+    'https://api.thecatapi.com/v1/images/search',  # Кошки
+    'https://dog.ceo/api/breeds/image/random',    # Собаки
+    'https://randomfox.ca/floof/',                 # Лисы
+    'https://random-d.uk/api/v2/random'           # Утки
+]
+
+@bot.message_handler(commands=['animals'])
+def animals_cmd(message: Message):
+    # Выбираем случайный API
+    api_url = random.choice(ANIMAL_APIS)
+
+    # Получаем данные
+    result = requests.get(api_url)
+    data = result.json()
+
+    # Извлекаем URL в зависимости от API
+    if 'thecatapi' in api_url:
+        url = data[0]['url']
+    elif 'dog.ceo' in api_url:
+        url = data['message']
+    elif 'randomfox' in api_url:
+        url = data['image']
+    elif 'random-d.uk' in api_url:
+        url = data['url']
+    else:
+        url = None
+            
+    if url:
+        bot.send_photo(message.chat.id, url)
+    else:
+        bot.send_message(message.chat.id, "Не удалось загрузить фото животного 🐾")
 
 bot.infinity_polling()
